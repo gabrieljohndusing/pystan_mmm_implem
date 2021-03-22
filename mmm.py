@@ -5,6 +5,7 @@ import pandas as pd
 import sys
 import time
 from datetime import datetime, timedelta
+from stats_can import StatsCan
 import pystan
 import os
 os.environ['CC'] = 'gcc-8'
@@ -315,6 +316,44 @@ class MMMModule:
             self.mean_absolute_percentage_error(y_true, y_pred))
         return y_true, y_pred
     
+    def make_dataframe(self, start_date, end_date, include_unemployment_rate=True):
+        '''
+        When function is called, returns a Pandas dataframe with time interval every sunday 
+        including the first one before the `start_date` and the last one before `end_date`.
+        start_date, end_date: input in the yyyy-mm-dd format
+        include_unemployment_rate: True by default. Pulls unemployment data from Statistics Canada using stats_can API
+        '''
+        start_date_ts = pd.Timestamp(start_date)
+        end_date_ts = pd.Timestamp(end_date)
+
+        df = pd.DataFrame()
+        df['date'] = pd.date_range(start_date_ts, end_date_ts, freq = 'W-SUN', closed = 'right')
+
+        if include_unemployment_rate:
+            sc = StatsCan()
+            unem_df = sc.vectors_to_df_remote('v2062815', periods = 360)
+            unem_df.columns = ['unemployment_rate']
+            unem_df = unem_df.reset_index()
+
+            unem_df['refPer_yr_mth'] = [item for item in zip(unem_df['refPer'].dt.year, unem_df['refPer'].dt.month)]
+        
+            df['date_row_yr_mth'] = [item for item in zip(df['date'].dt.year, df['date'].dt.month)]
+        
+            df_merge_orig_gdp = pd.merge(df, 
+                                    unem_df, 
+                                    how = 'left', 
+                                    left_on='date_row_yr_mth', 
+                                    right_on='refPer_yr_mth')
+        
+            df_merge_orig_gdp = df_merge_orig_gdp.loc[:,['date', 'unemployment_rate']]
+
+            return df_merge_orig_gdp
+
+        else:
+            return df
+          
+
+
     def calc_roas(self, mc_df, ms_df, period=None):
         roas = {}
         md_names = [col.split('_')[-1] for col in ms_df.columns]
