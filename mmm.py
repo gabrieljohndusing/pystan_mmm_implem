@@ -328,7 +328,7 @@ class MMMModule:
         end_date_ts = pd.Timestamp(end_date)
 
         df = pd.DataFrame()
-        df['date'] = pd.date_range(start_date_ts, end_date_ts, freq = 'W-SUN', closed = 'right')
+        df['date'] = pd.date_range(start_date_ts, end_date_ts, freq = 'W-SUN')
         df['date_row_yr_mth'] = [item for item in zip(df['date'].dt.year, df['date'].dt.month)]
 
         if include_econ_indicators:
