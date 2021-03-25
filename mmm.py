@@ -316,41 +316,52 @@ class MMMModule:
             self.mean_absolute_percentage_error(y_true, y_pred))
         return y_true, y_pred
     
-    def make_dataframe(self, start_date, end_date, include_unemployment_rate=True):
+    def make_dataframe(self, start_date, end_date, include_econ_indicators=True):
         '''
         When function is called, returns a Pandas dataframe with time interval every sunday 
         including the first one before the `start_date` and the last one before `end_date`.
         start_date, end_date: input in the yyyy-mm-dd format
-        include_unemployment_rate: True by default. Pulls unemployment data from Statistics Canada using stats_can API
+        include_econ_indicators: True by default. Pulls unemployment, monthly CPI, and monthly GDP data from Statistics Canada using stats_can API
+        TO-DO: GDP: True by default. Pulls monthly GDP  from Statistics Canada using stats_can API
         '''
         start_date_ts = pd.Timestamp(start_date)
         end_date_ts = pd.Timestamp(end_date)
 
         df = pd.DataFrame()
         df['date'] = pd.date_range(start_date_ts, end_date_ts, freq = 'W-SUN', closed = 'right')
+        df['date_row_yr_mth'] = [item for item in zip(df['date'].dt.year, df['date'].dt.month)]
 
-        if include_unemployment_rate:
+        if include_econ_indicators:
             sc = StatsCan()
             unem_df = sc.vectors_to_df_remote('v2062815', periods = 360)
             unem_df.columns = ['unemployment_rate']
             unem_df = unem_df.reset_index()
 
-            unem_df['refPer_yr_mth'] = [item for item in zip(unem_df['refPer'].dt.year, unem_df['refPer'].dt.month)]
-        
-            df['date_row_yr_mth'] = [item for item in zip(df['date'].dt.year, df['date'].dt.month)]
-        
+            gdp_df = sc.vectors_to_df_remote('v65201210', periods = 360)
+            gdp_df.columns = ['monthly_gdp']
+            gdp_df = gdp_df.reset_index()
+            
+            cpi_df = sc.vectors_to_df_remote('v41690973', periods = 360)
+            cpi_df.columns = ['monthly_cpi']
+            cpi_df = cpi_df.reset_index()
+
+            econ_df = pd.merge(unem_df, gdp_df, on='refPer', how='inner')
+            econ_df = econ_df.merge(cpi_df, on='refPer')
+            
+            econ_df['refPer_yr_mth'] = [item for item in zip(econ_df['refPer'].dt.year, econ_df['refPer'].dt.month)]
+            
             df_merge_orig_gdp = pd.merge(df, 
-                                    unem_df, 
-                                    how = 'left', 
-                                    left_on='date_row_yr_mth', 
-                                    right_on='refPer_yr_mth')
+                                    econ_df, 
+                                    how = 'inner', 
+                                    right_on='refPer_yr_mth',
+                                    left_on='date_row_yr_mth')
         
-            df_merge_orig_gdp = df_merge_orig_gdp.loc[:,['date', 'unemployment_rate']]
+            df_merge_orig_gdp = df_merge_orig_gdp.drop(['refPer_yr_mth','date_row_yr_mth','refPer'], axis = 1)
 
             return df_merge_orig_gdp
 
         else:
-            return df
+            return df.drop('date_row_yr_mth', axis = 1)
           
 
 
