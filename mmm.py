@@ -316,13 +316,13 @@ class MMMModule:
             self.mean_absolute_percentage_error(y_true, y_pred))
         return y_true, y_pred
     
-    def make_dataframe(self, start_date, end_date, include_econ_indicators=True):
+    def make_dataframe(self, start_date, end_date, include_econ_indicators=True, dataset_info = None):
         '''
         When function is called, returns a Pandas dataframe with time interval every sunday 
         including the first one before the `start_date` and the last one before `end_date`.
         start_date, end_date: input in the yyyy-mm-dd format
         include_econ_indicators: True by default. Pulls unemployment, monthly CPI, and monthly GDP data from Statistics Canada using stats_can API
-        TO-DO: GDP: True by default. Pulls monthly GDP  from Statistics Canada using stats_can API
+        dataset_info: dict with the following information- `filepath`, `ad_spend_list`, `date_column`
         '''
         start_date_ts = pd.Timestamp(start_date)
         end_date_ts = pd.Timestamp(end_date)
@@ -358,10 +358,27 @@ class MMMModule:
         
             df_merge_orig_gdp = df_merge_orig_gdp.drop(['refPer_yr_mth','date_row_yr_mth','refPer'], axis = 1)
 
-            return df_merge_orig_gdp
+            output_df = df_merge_orig_gdp
 
         else:
-            return df.drop('date_row_yr_mth', axis = 1)
+            output_df = df
+            
+        if dataset_info is not None:
+            filepath = dataset_info['filepath']
+            date_column = dataset_info['date_column']
+            ad_spend_list = dataset_info['ad_spend_list']
+            
+            data = pd.read_csv(filepath)
+            data[date_column] = pd.to_datetime(data[date_column])
+            mdsp_cols = [date_column] + ad_spend_list
+            spending_data = data[mdsp_cols]
+            
+            output_df = pd.merge(output_df, spending_data, left_on='date', right_on=date_column)
+        else:
+            output_df = df.drop('date_row_yr_mth', axis = 1)
+            
+        
+        return output_df
           
 
 
