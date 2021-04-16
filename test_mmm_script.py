@@ -10,8 +10,5 @@ dataset_info = {
     'ad_spend_list': ['mdsp_dm','mdsp_inst','mdsp_nsp','mdsp_auddig','mdsp_audtr','mdsp_vidtr','mdsp_viddig','mdsp_so','mdsp_on','mdsp_sem']
 }
 
-df = model.make_dataframe(start_date, end_date, include_econ_indicators=True, dataset_info=dataset_info)
+df = model.make_dataframe(start_date, end_date, 'data_cleaned.csv', 'wk_strt_dt', include_econ_indicators=True)
 print(df.head(5))
-
-df2 = model.make_dataframe(start_date, end_date, include_econ_indicators=False)
-print(df2.head(5))

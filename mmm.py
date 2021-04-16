@@ -13,6 +13,9 @@ os.environ['CXX'] = 'g++-8'
 from sklearn.metrics import mean_squared_error
 import matplotlib.pyplot as plt
 import seaborn as sns
+### 
+import pickle
+import pdb
 
 class MMMModule:
     def __init__(self):
@@ -316,20 +319,25 @@ class MMMModule:
             self.mean_absolute_percentage_error(y_true, y_pred))
         return y_true, y_pred
     
-    def make_dataframe(self, start_date, end_date, include_econ_indicators=True, dataset_info = None):
+    def make_dataframe(self, start_date, end_date, user_data_filepath, user_data_date_column, include_econ_indicators=True):
         '''
         When function is called, returns a Pandas dataframe with time interval every sunday 
         including the first one before the `start_date` and the last one before `end_date`.
         start_date, end_date: input in the yyyy-mm-dd format
         include_econ_indicators: True by default. Pulls unemployment, monthly CPI, and monthly GDP data from Statistics Canada using stats_can API
-        dataset_info: dict with the following information- `filepath`, `ad_spend_list`, `date_column`
+        user_data_filepath: string with path to the user provided adspend and kpi data
+        user_data_date_column: name of column with date. The first and last dates must match `start_date` and `end_date` respectively
         '''
+        user_df = pd.read_csv(user_data_filepath)
+        user_df[user_data_date_column] = pd.to_datetime(user_df[user_data_date_column])
+        user_df['ref_yr_mth'] = [item for item in zip(user_df[user_data_date_column].dt.year, user_df[user_data_date_column].dt.month)]
+
         start_date_ts = pd.Timestamp(start_date)
         end_date_ts = pd.Timestamp(end_date)
 
         df = pd.DataFrame()
         df['date'] = pd.date_range(start_date_ts, end_date_ts, freq = 'W-SUN')
-        df['date_row_yr_mth'] = [item for item in zip(df['date'].dt.year, df['date'].dt.month)]
+        df['ref_date'] = [item for item in zip(df['date'].dt.year, df['date'].dt.month)]
 
         if include_econ_indicators:
             sc = StatsCan()
@@ -340,48 +348,28 @@ class MMMModule:
             gdp_df = sc.vectors_to_df_remote('v65201210', periods = 360)
             gdp_df.columns = ['monthly_gdp']
             gdp_df = gdp_df.reset_index()
-            
+
             cpi_df = sc.vectors_to_df_remote('v41690973', periods = 360)
             cpi_df.columns = ['monthly_cpi']
             cpi_df = cpi_df.reset_index()
 
             econ_df = pd.merge(unem_df, gdp_df, on='refPer', how='inner')
             econ_df = econ_df.merge(cpi_df, on='refPer')
-            
+
+
             econ_df['refPer_yr_mth'] = [item for item in zip(econ_df['refPer'].dt.year, econ_df['refPer'].dt.month)]
-            
-            df_merge_orig_gdp = pd.merge(df, 
+
+            df_merge_orig_gdp = pd.merge(user_df, 
                                     econ_df, 
-                                    how = 'inner', 
-                                    right_on='refPer_yr_mth',
-                                    left_on='date_row_yr_mth')
-        
-            df_merge_orig_gdp = df_merge_orig_gdp.drop(['refPer_yr_mth','date_row_yr_mth','refPer'], axis = 1)
+                                    how = 'left',
+                                    left_on='ref_yr_mth', 
+                                    right_on='refPer_yr_mth')
 
-            output_df = df_merge_orig_gdp
-
+            return df_merge_orig_gdp.drop(['refPer_yr_mth','ref_yr_mth','refPer',], axis = 1)
         else:
-            output_df = df
-            
-        if dataset_info is not None:
-            filepath = dataset_info['filepath']
-            date_column = dataset_info['date_column']
-            ad_spend_list = dataset_info['ad_spend_list']
-            
-            data = pd.read_csv(filepath)
-            data[date_column] = pd.to_datetime(data[date_column])
-            mdsp_cols = [date_column] + ad_spend_list
-            spending_data = data[mdsp_cols]
-            
-            output_df = pd.merge(output_df, spending_data, left_on='date', right_on=date_column)
-        else:
-            output_df = df.drop('date_row_yr_mth', axis = 1)
-            
-        
-        return output_df
-          
+            return user_df
 
-
+   
     def calc_roas(self, mc_df, ms_df, period=None):
         roas = {}
         md_names = [col.split('_')[-1] for col in ms_df.columns]
@@ -485,7 +473,7 @@ class MMMModule:
           y ~ normal(X1*beta1 + X2*beta2 + alpha, sqrt(noise_var));
         }
         '''
-
+        
         sm1 = pystan.StanModel(model_code=ctrl_code1, verbose=True)
         fit1 = sm1.sampling(data=ctrl_data, iter=self.iter, chains=4)
         fit1_result = fit1.extract()
@@ -607,6 +595,7 @@ class MMMModule:
             ax.set_title(md)
         f.savefig('media_coef.png', dpi=f.dpi)
 
+
         mc_df = self.mmm_decompose_contrib(mmm, df, df[kpi])
         adstock_params = mmm['adstock_params']
         mc_pct, mc_pct2 = self.calc_media_contrib_pct(mc_df, mdip_cols, kpi, period=52)
@@ -719,4 +708,12 @@ class MMMModule:
             pd.DataFrame.from_dict(roas_1y, orient='index', columns=['roas_avg'])
         ], axis=1)
         roas1y_df.to_csv('roas1y_df1.csv')
+
+        f = plt.figure(figsize=(16,15))
+        plt.bar(roas1y_df.index, roas1y_df.loc[:,'roas_mean'], alpha=0.2, label='ROAS')
+        plt.plot(roas1y_df.index, roas1y_df.loc[:,'mroas'], alpha=0.25, label='mROAS')
+        plt.legend()
+        f.savefig('roas_and_mroas.png', dpi=f.dpi)
+
         return df
+
