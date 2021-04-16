@@ -14,6 +14,7 @@ from sklearn.metrics import mean_squared_error
 import matplotlib.pyplot as plt
 import seaborn as sns
 ### 
+from fbprophet import Prophet
 import pickle
 import pdb
 
@@ -369,6 +370,29 @@ class MMMModule:
         else:
             return user_df
 
+    def get_forecast(self, user_data_filepath, user_date_column, kpi_column, future_periods):
+        """
+        user_data_filepath (str): Path to csv file with data
+        user_date_column (str): Name of date column
+        kpi_column (str): Name of kpi column that you want to forecast
+        future_periods (int): How many weeks into the future you want to make forecasts
+        """
+        data = pd.read_csv(user_data_filepath)
+        df = data.loc[:,[user_date_column, kpi_column]]
+        df.columns = ['ds','y']
+
+        m = Prophet()
+        m.fit(df)
+        future = m.make_future_dataframe(periods = future_periods, freq = 'W')
+        forecast = m.predict(future)
+
+        f = plt.figure(figsize=(18,12))
+        plt.plot(pd.to_datetime(forecast.loc[:df.shape[0]-1,'ds']), df['y'], color = 'blue', label=f'True {kpi_column} Value')
+        plt.plot(pd.to_datetime(forecast.loc[:,'ds']), forecast['yhat'], color = 'green', label=f'Forecasted {kpi_column} Value')
+        f.savefig('forecasts.png')
+
+        return f
+
    
     def calc_roas(self, mc_df, ms_df, period=None):
         roas = {}
@@ -709,7 +733,7 @@ class MMMModule:
         ], axis=1)
         roas1y_df.to_csv('roas1y_df1.csv')
 
-        f = plt.figure(figsize=(16,15))
+        f = plt.figure(figsize=(18,12))
         plt.bar(roas1y_df.index, roas1y_df.loc[:,'roas_mean'], alpha=0.2, label='ROAS')
         plt.plot(roas1y_df.index, roas1y_df.loc[:,'mroas'], alpha=0.25, label='mROAS')
         plt.legend()

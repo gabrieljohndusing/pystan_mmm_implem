@@ -12,3 +12,5 @@ dataset_info = {
 
 df = model.make_dataframe(start_date, end_date, 'data_cleaned.csv', 'wk_strt_dt', include_econ_indicators=True)
 print(df.head(5))
+
+model.get_forecast('data_cleaned.csv', 'wk_strt_dt','sales',12)
