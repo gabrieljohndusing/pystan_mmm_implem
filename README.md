@@ -4,6 +4,8 @@
 
 ### Marketing Mix Models
 
+Read my [Medium article](https://gabrieljdusing.medium.com/productionizing-a-marketing-mix-model-ea12980af939) about this project.
+
 Marketing mix models (MMM) are used by advertisers to understand how their advertising spending affects a certain KPI, for example, sales or revenue.
 This allows them to optimize their future media budget more effectively.
 To this end, Return on Ad Spend (ROAS) and marginal Return on Ad Spend (mROAS) are the most important metrics.
